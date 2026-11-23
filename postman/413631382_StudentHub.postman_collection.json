@@ -1,0 +1,175 @@
+{
+  "info": {
+    "name": "413631382_StudentHub",
+    "description": "StudentHub 後端 API 測試（學號 413631382）。先啟動後端：cd BackEndExample && npm run dev",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8877"
+    },
+    {
+      "key": "newUserName",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "findAll - 取得所有學生",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/user/findAll"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code 為 200', () => pm.expect(json.code).to.eql(200));",
+              "pm.test('body 為陣列且至少 50 筆', () => {",
+              "  pm.expect(json.body).to.be.an('array');",
+              "  pm.expect(json.body.length).to.be.at.least(50);",
+              "});",
+              "pm.test('每筆學生欄位都是字串', () => {",
+              "  const fields = [\"userName\", \"sid\", \"name\", \"department\", \"grade\", \"class\", \"Email\"];",
+              "  json.body.forEach(s => fields.forEach(f => pm.expect(s[f], `${s.userName}.${f}`).to.be.a('string')));",
+              "});",
+              "console.log('學生總數：', json.body.length);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "insertOne - 新增學生",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userName\": \"{{newUserName}}\",\n  \"name\": \"測試學生\",\n  \"department\": \"資管系\",\n  \"grade\": \"三年級\",\n  \"class\": \"C\",\n  \"Email\": \"{{newUserName}}@example.com\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/v1/user/insertOne"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// 自動挑一個還沒被用過的四碼座號，避免「座號已存在」",
+              "pm.sendRequest(pm.collectionVariables.get('baseUrl') + '/api/v1/user/findAll', (err, res) => {",
+              "  const used = new Set((res.json().body || []).map(s => String(s.userName).slice(-4)));",
+              "  let seat;",
+              "  do { seat = String(Math.floor(1000 + Math.random() * 9000)); } while (used.has(seat));",
+              "  pm.collectionVariables.set('newUserName', 'tkuim' + seat);",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code 為 200', () => pm.expect(json.code).to.eql(200));",
+              "pm.test('回傳新增的學生', () => {",
+              "  pm.expect(json.body.userName).to.eql(pm.collectionVariables.get('newUserName'));",
+              "  pm.expect(json.body._id).to.be.a('string');",
+              "  pm.expect(json.body.sid).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "insertOne - 座號重複（應失敗 403）",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userName\": \"{{newUserName}}\",\n  \"name\": \"重複座號\",\n  \"department\": \"資管系\",\n  \"grade\": \"三年級\",\n  \"class\": \"C\",\n  \"Email\": \"dup@example.com\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/v1/user/insertOne"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// 用上一個請求剛新增的 userName 再新增一次，應被拒絕",
+              "const json = pm.response.json();",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('訊息為座號已存在', () => pm.expect(json.message).to.eql('座號已存在'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "insertOne - 校名錯誤（應失敗 403）",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userName\": \"abcim1234\",\n  \"name\": \"格式錯誤\",\n  \"department\": \"資管系\",\n  \"grade\": \"三年級\",\n  \"class\": \"C\",\n  \"Email\": \"bad@example.com\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/v1/user/insertOne"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('訊息為校名必須為 tku', () => pm.expect(json.message).to.eql('校名必須為 tku'));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
